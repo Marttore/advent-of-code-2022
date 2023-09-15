@@ -30,7 +30,7 @@ def parse_move(move):
     return tuple(int(x) for x in digits[0])
 
 
-def part_1(stacks, moves):
+def do_part_1(stacks, moves):
     for move in moves:
         count, frm, to = parse_move(move)
 
@@ -41,7 +41,7 @@ def part_1(stacks, moves):
     return "".join([st[-1] for st in stacks])
 
 
-def part_2(stacks, moves):
+def do_part_2(stacks, moves):
     for move in moves:
         count, frm, to = parse_move(move)
 
@@ -55,8 +55,8 @@ def part_2(stacks, moves):
 
     return "".join([st[-1] for st in stacks])
 
-part_1 = part_1(stacks_1, moves)
-part_2 = part_2(stacks_2, moves)
+part_1 = do_part_1(stacks_1, moves)
+part_2 = do_part_2(stacks_2, moves)
 
 
 print(f"Part 1: {part_1}")

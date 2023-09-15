@@ -1,177 +1,108 @@
-import os
+import os 
 import re
-from copy import deepcopy
-from collections import deque
-from typing import Dict
+from functools import cache
+import time
 
 day = os.path.basename(os.getcwd())
 
-class Node():
-    
-    def __init__(self, row):
-        flow = int(re.findall(r"\d+", row)[0])
-        valve, *connected = re.findall(r"[A-Z]{2}", row)
-        connected  = {c : 1 for c in connected}
-        self.flow = flow
-        self.connected = connected
-        self.name = valve
-        self.open = False
-        self.times_visited = 0
-        self.value = 0
+flows = {}
+connections = {}
+valve_mapping = {}
 
-    def __hash__(self) -> int:
-        return hash(self.name)
-    
-    def __str__(self) -> str:
-        return f"{self.name} : {self.flow}, {self.connected}"
-    
-    def __repr__(self) -> str:
-        return f"{self.name} {self.open}"
+for i, row in enumerate(open(f"{day}.in")):
+    flow = int(re.findall(r"\d+", row)[0])
+    valve, *connected = re.findall(r"[A-Z]{2}", row)
+    flows[i] = flow
+    connections[i] = {c : 1 for c  in connected}
+    valve_mapping[valve] = i
 
-    def update_value(self, minute):
-        self.value = (30 - minute) * self.flow
+for i, c in connections.items():
+    connections[i] = {valve_mapping[k]: v for k, v in c.items()}
 
+def contract(curr):
+    conn = connections[curr]
 
-
-
-valves : Dict[str, Node] = {}
-for row in open(f"{day}.test"):
-    new_valve = Node(row)
-    valves[new_valve.name] = new_valve
-
-def contract(valves, valve):
-    connections = valve.connected
-
-    for a in connections:
-        for b in connections:
+    for a in conn:
+        for b in conn:
             if a != b:
-                valves[a].connected[b] = valve.connected[b] + valve.connected[a]
-        del valves[a].connected[valve.name]
+                if b not in connections[a]:
+                    connections[a][b] = connections[curr][b] + connections[curr][a]
+        del connections[a][curr]
 
-    del valves[valve.name]
-    return valves
+    del connections[curr]
+    del flows[curr]
+    curr_map = [k for k,v in valve_mapping.items() if v == curr][0]
+    del valve_mapping[curr_map]
 
-zero_valves = {k: v for k, v in valves.items() if v.flow == 0 and v.name!="AA"} 
+zeros = [k for k, v in flows.items() if v == 0 and valve_mapping["AA"] != k]
+for z in zeros:
+    contract(z)
 
-for zv in zero_valves.values():
-    valves = contract(valves, zv)
+print(flows)
+print(connections)
+print(valve_mapping)
 
-for k, valve in valves.items():
-    print(valve)
+def get_bit(value, bit_index):
+    return (value >> bit_index) & 1
 
-def total_flow(valves):
-    return sum(valve.value for valve in valves.values())
+def set_bit(value, bit_index):
+    return value | (1 << bit_index)
 
-BEST = 0
-def iterate(valves: Dict[str, Node], minute, position, total):
-    valves[position].times_visited += 1
-    global BEST
+
+@cache
+def get_flow(value):
+    return sum(flow for k, flow in flows.items() if get_bit(value, k) == 1)
+
+
+@cache
+def iterate(position, open, minute):
 
     if minute >= 30:
-        if total > BEST:
-            BEST = total
-        return
+        return 0
 
-    #if total + (30-minute) * 150 < BEST:
-    #    return
+    best = 0
+    if get_bit(open, position) == 0:
+        val = flows[position] * (30 - minute)
+        best = iterate(position, set_bit(open, position), minute + 1) + val
 
-    if not valves[position].open and valves[position].flow > 0:
-        valves_copy = deepcopy(valves)
-        valves_copy[position].open = True
-        valves_copy[position].update_value(minute)
-        new_total = valves_copy[position].value + total
-        valves_copy[position].flow=0
+    for next_pos, dist in connections[position].items():
+        best = max(best, iterate(next_pos, open, minute + dist)) 
 
+    return best
 
+@cache
+def iterate2(my_pos, el_pos,my_min, el_min, open):
 
-        if all(valve.open for valve in valves_copy.values() if valve.flow > 0) :
-            if new_total > BEST:
-                BEST = total
-                return 
-        valves_copy[position].times_visited -= 1
-        iterate(valves_copy, minute + 1, position, new_total)
+    if my_min >= 26 and el_min >= 26:
+        return 0
 
-    candidates = [(possible_move, dist, valves[possible_move].flow) for possible_move, dist in valves[position].connected.items()]
-    candidates.sort(key=lambda x: x[2], reverse=True)
-    for possible_move, dist, flow in candidates:
-        if valves[possible_move].times_visited >= len(valves[possible_move].connected):
-            continue
+    turn  = my_min <= el_min
 
-        valves_copy = deepcopy(valves)
+    best = 0
+    if turn:
+        if get_bit(open, my_pos) == 0:
+            val = flows[my_pos] * (26 - my_min)
+            best = iterate2(my_pos, el_pos, my_min + 1, el_min , set_bit(open, my_pos)) + val
+    else:
+        if get_bit(open, el_pos) == 0:
+            val = flows[el_pos] * (26 - el_min)
+            best = iterate2(my_pos, el_pos, my_min, el_min + 1 , set_bit(open, my_pos)) + val
 
-        if valves_copy[position].flow == 0:
-            valves_copy = contract(valves_copy, valves[position])
+    if turn:
+        for next_pos, dist in connections[my_pos].items():
+            best = max(best, iterate2(next_pos, el_pos, my_min + dist, el_min, open))
+    else:
+        for next_pos, dist in connections[el_pos].items():
+            best = max(best, iterate2(my_pos, next_pos, my_min, el_min + dist, open))
 
-        if minute + dist > 30:
-            if  total > BEST:
-                BEST = total
-            return 
-        iterate(valves_copy, minute+dist,  possible_move, total)
+    return best + get_flow(open)
 
-
-
-
-def iterate_BFS(org_valves: Dict[str, Node]):
-    global BEST
-    Q = deque()
-    Q.append((org_valves, "AA", 1, 0, None))
-
-    max_flow = max(v.flow for v in org_valves.values())
-    while Q:
-        valves, position, minute, total, prev = Q.popleft()
-        valves[position].times_visited += 1
-
-        if total + (30-minute) * 120 < 1750:
-            continue
-
-        if minute >= 30:
-            total = total_flow(valves)
-            if total > BEST:
-                BEST = total
-            continue
-            
-        if not valves[position].open and valves[position].flow > 0:
-            valves_copy = deepcopy(valves)
-            valves_copy[position].open = True
-            valves_copy[position].update_value(minute)
-            new_total = valves_copy[position].value
+st = time.time()
+part_1 = iterate(valve_mapping["AA"], 1, 1)
+el_time = time.time() - st
+#part_2 = iterate2(valve_mapping["AA"], valve_mapping["AA"],1, 1, 1)
+print(part_1)
+print(el_time)
+#print(part_2)
 
 
-            if all(valve.open for valve in valves_copy.values() if valve.flow > 0) :
-                total = total_flow(valves_copy)
-                if total > BEST:
-                    BEST = total
-                continue
-            
-
-            if new_total > BEST:
-                BEST=new_total
-
-            valves_copy[position].times_visited -= 1
-            Q.append((valves_copy, position, minute + 1, new_total, prev))
-
-        candidates = [(possible_move, dist, valves[possible_move].flow) for possible_move, dist in valves[position].connected.items()]
-        candidates.sort(key=lambda x: x[2], reverse=True)
-        for possible_move, dist, flow in candidates:
-            if valves[possible_move].times_visited >= len(valves[possible_move].connected):
-                continue
-
-            if possible_move == prev:
-                continue
-
-            valves_copy = deepcopy(valves)
-
-            Q.append((valves_copy, possible_move,  minute+dist, total, position))
-
-        #if len(valves[possible_move].connected) == 1:
-        if prev:
-            if valves[prev].times_visited < len(valves[prev].connected):
-
-                valves_copy = deepcopy(valves)
-                Q.append((valves_copy, prev, minute+valves[position].connected[prev], total, position ))
-
-
-
-iterate(valves, 1, "AA", 0)
-#iterate_BFS(valves)
-print(f"Part 1: {BEST}")
