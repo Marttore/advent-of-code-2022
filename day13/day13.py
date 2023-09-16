@@ -2,6 +2,7 @@ import os
 from itertools import zip_longest
 from functools import cmp_to_key
 from math import prod
+from ast import literal_eval
 
 day = os.path.basename(os.getcwd())
 
@@ -31,16 +32,16 @@ def in_right_order(pair):
 
     return True
 
-pairs = [[eval(x) for x in pair.strip().split("\n")] for pair in open(f"{day}.in").read().split("\n\n")]
+pairs = [[literal_eval(x) for x in pair.strip().split("\n")] for pair in open(f"{day}.in").read().split("\n\n")]
 
 part_1 = sum(i + 1 for i, pair in enumerate(pairs) if in_right_order(pair))
 
-lines = [eval(x.strip()) for x in open(f"{day}.in").read().splitlines() if x]
-lines.extend([[2], [6]])
+lines = [literal_eval(x.strip()) for x in open(f"{day}.in").read().splitlines() if x]
+lines.extend([[[2]], [[6]]])
 less_than = lambda x, y : -1 if in_right_order((x, y)) else 1
 lines = sorted(lines, key=cmp_to_key(less_than))
 
-part_2 = prod(i+1 for i, line in enumerate(lines) if line==[2] or line ==[6])
+part_2 = prod(i+1 for i, line in enumerate(lines) if line==[[2]] or line==[[6]])
 
 print(f"Part 1: {part_1}")
 print(f"Part 2: {part_2}")

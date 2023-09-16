@@ -31,14 +31,16 @@ for i, (sensor_x, sensor_y, beacon_x, beacon_y) in enumerate(rows):
         scanned[row].append((l, u))
         scanned[row].sort(key = lambda x: x[0])
 
-        while True:
-            for i, (first_segment, second_segment) in enumerate(pairwise(scanned[row])):
-                if first_segment[1] >= second_segment[0] - 1:
-                    scanned[row][i] = (first_segment[0], max(first_segment[1], second_segment[1]))
-                    del(scanned[row][i+1])
-                    break
-            else:
+
+for row in scanned:
+    while True:
+        for i, (first_segment, second_segment) in enumerate(pairwise(scanned[row])):
+            if first_segment[1] >= second_segment[0] - 1:
+                scanned[row][i] = (first_segment[0], max(first_segment[1], second_segment[1]))
+                del(scanned[row][i+1])
                 break
+        else:
+            break
 
 
 part_1 = 0
